@@ -2,51 +2,30 @@ import streamlit as st
 import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 import numpy as np
-import os
-import requests
 
 # 1. SETTING HALAMAN UTAMA
 st.set_page_config(page_title="Deteksi Anomali Ulasan - IndoBERT", layout="centered")
 st.title("🛡️ Sistem Deteksi Anomali Ulasan (Powered by IndoBERT)")
 st.write("Aplikasi ini mendeteksi apakah ulasan produk kosmetik termasuk Normal atau Anomali menggunakan Deep Learning.")
 
-# Fungsi pembantu untuk download file dari Google Drive secara otomatis
-def download_from_drive(file_id, destination):
-    if not os.path.exists(destination):
-        with st.spinner(f"Mengunduh komponen model ({destination}) dari Google Drive server..."):
-            url = f"https://docs.google.com/uc?export=download&id={file_id}"
-            session = requests.Session()
-            response = session.get(url, stream=True)
-            with open(destination, "wb") as f:
-                for chunk in response.iter_content(chunk_size=32768):
-                    if chunk:
-                        f.write(chunk)
-
-# 2. PROSES DOWNLOAD & LOAD MODEL HASIL FINE-TUNING
+# 2. LOAD MODEL LANGSUNG DARI REPO HUGGING FACE + REPO GITHUB KAMU
 @st.cache_resource
-def load_my_fine_tuned_model():
-    # Buat folder lokal di server Streamlit Cloud
-    os.makedirs("my_model", exist_ok=True)
+def load_my_clean_model():
+    # File config.json & tokenizer dibaca dari folder lokal hasil push GitHub kamu
+    local_folder = "indobert_final_model"
+    tokenizer = BertTokenizer.from_pretrained(local_folder)
     
-    # === ⚠️ GANTI ID DI BAWAH INI DENGAN ID UNIK DARI GOOGLE DRIVE KAMU ===
-    CONFIG_ID = "ID_FILE_CONFIG_JSON_KAMU"
-    VOCAB_ID = "ID_FILE_VOCAB_TXT_KAMU"
-    MODEL_ID = "1LS_q-0YoydPmMVBkIk8pwYPNmopf1ZmN" # File seberat 498MB
+    # === ⚠️ GANTI INI DENGAN USERNAME HF & NAMA REPO MODEL HF KAMU ===
+    # Contoh: "if2321400238/indobert-ulasan-kosmetik"
+    hf_model_repo = "shahibkholil/indobert-ulasan-kosmetik"
     
-    # Proses download otomatis via jalur belakang Google (Hanya sekali saat web pertama kali dinyalakan)
-    download_from_drive(CONFIG_ID, "my_model/config.json")
-    download_from_drive(VOCAB_ID, "my_model/vocab.txt")
-    # Cek apakah modelnya safetensors atau pytorch_model.bin, sesuaikan namanya
-    download_from_drive(MODEL_ID, "my_model/model.safetensors") 
-    
-    # Load model hasil download yang sudah pintar
-    tokenizer = BertTokenizer.from_pretrained("my_model")
-    model = BertForSequenceClassification.from_pretrained("my_model")
+    # Mengambil file config lokal tapi bobot modelnya otomatis disedot dari Hugging Face
+    model = BertForSequenceClassification.from_pretrained(hf_model_repo, config=f"{local_folder}/config.json")
     return tokenizer, model
 
 try:
-    tokenizer, model = load_my_fine_tuned_model()
-    st.success("✅ Model Cerdas IndoBERT Hasil Fine-Tuning Berhasil Dimuat!")
+    tokenizer, model = load_my_clean_model()
+    st.success("✅ Model Cerdas IndoBERT Hasil Fine-Tuning Sukses Dimuat via Hugging Face Hub!")
 except Exception as e:
     st.error(f"❌ Gagal memuat model. Error: {e}")
     st.stop()
