@@ -1,57 +1,223 @@
 import streamlit as st
 import torch
-from transformers import BertTokenizer, BertForSequenceClassification
 import numpy as np
 
-# 1. SETTING HALAMAN UTAMA
-st.set_page_config(page_title="Deteksi Anomali Ulasan - IndoBERT", layout="centered")
-st.title("🛡️ Sistem Deteksi Anomali Ulasan (Powered by IndoBERT)")
-st.write("Aplikasi ini mendeteksi apakah ulasan produk kosmetik termasuk Normal atau Anomali menggunakan Deep Learning.")
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSequenceClassification
+)
 
-# 2. LOAD MODEL LANGSUNG DARI REPO HUGGING FACE + REPO GITHUB KAMU
+# =========================================================
+# PAGE CONFIG
+# =========================================================
+
+st.set_page_config(
+    page_title="Deteksi Ulasan Kosmetik Palsu",
+    page_icon="🛡️",
+    layout="centered"
+)
+
+# =========================================================
+# TITLE
+# =========================================================
+
+st.title("🛡️ Deteksi Ulasan Kosmetik Palsu")
+st.markdown(
+    """
+Aplikasi AI berbasis IndoBERT untuk mendeteksi:
+
+- 🟢 Normal
+- 🚨 Anomali
+- 🤔 Skeptis
+
+pada ulasan produk kosmetik.
+"""
+)
+
+# =========================================================
+# LABEL MAPPING
+# =========================================================
+
+label_map = {
+    0: "NORMAL",
+    1: "ANOMALI",
+    2: "SKEPTIS"
+}
+
+label_emoji = {
+    0: "🟢",
+    1: "🚨",
+    2: "🤔"
+}
+
+# =========================================================
+# MODEL REPO
+# =========================================================
+
+MODEL_REPO = "shahibkholil/indobert-ulasan-kosmetik"
+
+# =========================================================
+# LOAD MODEL
+# =========================================================
+
 @st.cache_resource
-def load_my_clean_model():
-    # File config.json & tokenizer dibaca dari folder lokal hasil push GitHub kamu
-    local_folder = "indobert_final_model"
-    tokenizer = BertTokenizer.from_pretrained(local_folder)
-    
-    # === ⚠️ GANTI INI DENGAN USERNAME HF & NAMA REPO MODEL HF KAMU ===
-    # Contoh: "if2321400238/indobert-ulasan-kosmetik"
-    hf_model_repo = "shahibkholil/indobert-ulasan-kosmetik"
-    
-    # Mengambil file config lokal tapi bobot modelnya otomatis disedot dari Hugging Face
-    model = BertForSequenceClassification.from_pretrained(hf_model_repo, config=f"{local_folder}/config.json")
+def load_model():
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_REPO
+    )
+
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_REPO
+    )
+
+    model.eval()
+
     return tokenizer, model
 
+# =========================================================
+# LOAD
+# =========================================================
+
 try:
-    tokenizer, model = load_my_clean_model()
-    st.success("✅ Model Cerdas IndoBERT Hasil Fine-Tuning Sukses Dimuat via Hugging Face Hub!")
+
+    tokenizer, model = load_model()
+
+    st.success("✅ Model IndoBERT berhasil dimuat!")
+
 except Exception as e:
-    st.error(f"❌ Gagal memuat model. Error: {e}")
+
+    st.error(f"Gagal memuat model: {e}")
+
     st.stop()
 
-# 3. INPUT USER
-user_input = st.text_area("Masukkan teks ulasan kosmetik di sini:", placeholder="Contoh: Ini beneran ori ga sih? Kok teksturnya beda banget... ")
+# =========================================================
+# EXAMPLE REVIEWS
+# =========================================================
 
-# 4. PROSES PREDIKSI
-if st.button("Analisis Ulasan dengan AI"):
-    if user_input.strip() == "":
-        st.warning("Silakan masukkan teks terlebih dahulu!")
+st.write("### 🧪 Contoh Ulasan")
+
+examples = {
+    "Normal": "Produk bagus, wanginya enak dan sesuai deskripsi.",
+    "Anomali": "Parahhhh dapet yang palsu, wanginya beda banget.",
+    "Skeptis": "Ini asli atau palsu sih? Kok teksturnya beda ya?"
+}
+
+selected_example = st.selectbox(
+    "Pilih contoh ulasan:",
+    [""] + list(examples.keys())
+)
+
+default_text = ""
+
+if selected_example:
+    default_text = examples[selected_example]
+
+# =========================================================
+# USER INPUT
+# =========================================================
+
+user_input = st.text_area(
+    "Masukkan ulasan kosmetik:",
+    value=default_text,
+    placeholder="Contoh: wanginya beda banget dari official store...",
+    height=150
+)
+
+# =========================================================
+# PREDICTION
+# =========================================================
+
+if st.button("🔍 Analisis Ulasan"):
+
+    if not user_input.strip():
+
+        st.warning("Masukkan teks terlebih dahulu.")
+
     else:
-        with st.spinner("IndoBERT sedang menganalisis konteks kalimat..."):
-            inputs = tokenizer(user_input, return_tensors="pt", truncation=True, padding=True, max_length=128)
-            
+
+        with st.spinner("Menganalisis ulasan..."):
+
+            inputs = tokenizer(
+                user_input,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+                max_length=128
+            )
+
             with torch.no_grad():
+
                 outputs = model(**inputs)
+
                 logits = outputs.logits
-                probs = torch.nn.functional.softmax(logits, dim=1).flatten().numpy()
-                prediction = np.argmax(probs)
-            
-            st.write("---")
-            st.write(f"**Keyakinan Model (Normal):** {probs[0]*100:.2f}%")
-            st.write(f"**Keyakinan Model (Anomali):** {probs[1]*100:.2f}%")
-            
-            if prediction == 1:
-                st.error("🚨 **Hasil Analisis:** Ulasan Terdeteksi **ANOMALI / MENCURIGAKAN**")
-            else:
-                st.success("🟢 **Hasil Analisis:** Ulasan **NORMAL**")
+
+                probs = torch.softmax(
+                    logits,
+                    dim=1
+                ).cpu().numpy()[0]
+
+                pred = int(np.argmax(probs))
+
+        # =================================================
+        # RESULT
+        # =================================================
+
+        st.divider()
+
+        st.subheader("Hasil Analisis")
+
+        st.markdown(
+            f"""
+## {label_emoji[pred]} {label_map[pred]}
+"""
+        )
+
+        # =============================================
+        # CONFIDENCE SCORE
+        # =============================================
+
+        st.write("### 📊 Confidence Score")
+
+        st.write(f"🟢 NORMAL: {probs[0]*100:.2f}%")
+        st.progress(float(probs[0]))
+
+        st.write(f"🚨 ANOMALI: {probs[1]*100:.2f}%")
+        st.progress(float(probs[1]))
+
+        st.write(f"🤔 SKEPTIS: {probs[2]*100:.2f}%")
+        st.progress(float(probs[2]))
+
+        # =============================================
+        # INTERPRETATION
+        # =============================================
+
+        st.write("---")
+
+        if pred == 0:
+
+            st.success(
+                "Ulasan terdeteksi normal."
+            )
+
+        elif pred == 1:
+
+            st.error(
+                "Ulasan terindikasi anomali / kemungkinan produk palsu."
+            )
+
+        elif pred == 2:
+
+            st.warning(
+                "Ulasan bersifat skeptis atau mencurigakan."
+            )
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.write("---")
+
+st.caption(
+    "Powered by IndoBERT Fine-Tuning for Fake Cosmetic Review Detection"
+)
