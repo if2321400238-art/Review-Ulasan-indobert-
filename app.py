@@ -186,9 +186,11 @@ if st.button("🔍 Analisis Ulasan", use_container_width=True):
                 outputs = model(**inputs)
 
                 logits = outputs.logits
+                
+                temperature = 2.0
 
                 probs = torch.softmax(
-                    logits,
+                    logits / temperature,
                     dim=1
                 ).cpu().numpy()[0]
 
