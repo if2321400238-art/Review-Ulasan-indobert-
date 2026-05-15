@@ -187,7 +187,7 @@ if st.button("🔍 Analisis Ulasan", use_container_width=True):
 
                 logits = outputs.logits
                 
-                temperature = 2.0
+                temperature = 3.0
 
                 probs = torch.softmax(
                     logits / temperature,
