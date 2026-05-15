@@ -1,0 +1,22 @@
+# Blokir semua file bobot model raksasa secara global
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.pkl
+
+# Blokir folder lingkungan virtual Python (Virtual Environment)
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Blokir file log dan sistem yang tidak diperlukan
+*.log
+.DS_Store
+.ipynb_checkpoints/
+
+# Pengecualian khusus: Pastikan folder konfigurasi model tetap di-upload, 
+# kecuali file raksasa di dalamnya (sudah di-handle oleh aturan *.safetensors di atas)
+!indobert_final_model/
